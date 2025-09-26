@@ -4,11 +4,11 @@ from typing import Dict, List
 from fastapi import  status,  Depends,APIRouter
 from fastapi.responses import JSONResponse
 from app.models.common import Status
-from app.models.skillStore import DisableFollowupQuestions,CreateUpdateSkillStore
+from app.models.skillStore import DisableFollowupQuestions,CreateUpdateSkillStore,SkillResourceCost
 from app.services.skillStoreService import InsertUpdateLikeStatusHelper,\
         InsertUpdateUsedStatusHelper,GetSkillStoreHelper,GetSkillStoreByIdHelper,\
             CheckSkillsAvailabilityHelper,AddUpdateUsersSkillShowFollowupQuestionStateHelper,\
-                CreateSkillHelper,UpdateSkillHelper,DeleteSkillHelper,GetSkillDetailsHelper
+                CreateSkillHelper,UpdateSkillHelper,DeleteSkillHelper,GetSkillDetailsHelper,GetSkillResourceCostByDaysHelper
 from app.models.skillStore import UpdateStatus
 from app.commons.error_helper import responses, GetJSONResponse, db_unauthorized
 from app.commons.jwt_auth import validate_token
@@ -183,4 +183,26 @@ async def GetSkillDetails(SkillStoreId:int,token: Dict = Depends(validate_token)
         return GetJSONResponse(500, ex)    
     except Exception as ex:
         logging.exception(f'Exception while Get Skill : {ex!r}')
+        return GetJSONResponse(500, ex)
+    
+
+@router.post('/GetSkillResourceCostByDays', responses=responses("422", "500"))
+async def GetSkillResourceCostByDays(body:SkillResourceCost,token: Dict = Depends(validate_token)):
+    try:
+        logger.debug(f'GetSkillResourceCostByDays Request : PayLoad {token}')
+        logger.debug(f'GetSkillResourceCostByDays Request : Body {body}')
+        skillResourceCost = await GetSkillResourceCostByDaysHelper(data=body)
+        return JSONResponse(status_code=status.HTTP_200_OK, content=skillResourceCost)
+    except pyodbc.Error as ex:
+        logging.exception(f'DB Exception while CreateSkillStore: {ex!r}')
+        err_msg = str(ex)
+        if 'SkillId' in err_msg and 'does not exist in SkillStore' in err_msg:
+            return GetJSONResponse(404, f"SkillId not found: {body.SkillID}")
+        elif 'Combination of SkillId' in err_msg and 'already exists' in err_msg:
+            return GetJSONResponse(409, f"Duplicate entry: SkillId {body.SkillID}, ResourceId {body.ResourceId} exists.")
+        if db_unauthorized in ex.args[1]:
+            return GetJSONResponse(401, db_unauthorized)
+        return GetJSONResponse(500, ex)    
+    except Exception as ex:
+        logging.exception(f'Exception while CreateSkillStore : {ex!r}')
         return GetJSONResponse(500, ex)

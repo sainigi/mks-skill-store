@@ -3,7 +3,7 @@ from app.models.skillStore import Filter,SkillStore,UpdateStatus,SkillTag,\
     SkillStoreDetail,SkillStoreLikes,SkillStoreUsed,SkillStoreVersion,\
         SkillStoreDetailVersion,SkillFunction,SkillSubFunction,DefaultChatbotConfiguration,\
             ChatbotConfiguration,Additive,SkillStoreStatus,DisableFollowupQuestions,\
-                CreateUpdateSkillStore,KeyValuePair
+                CreateUpdateSkillStore,KeyValuePair,SkillResourceCost,SkillResource
 from app.commons.sp_helper import exec_store_proc,exec_stored_procedure_multiple_sets
 import logging
 import os
@@ -138,7 +138,7 @@ async def InsertUpdateUsedStatusHelper(SkillStoreId:int,user_id:str):
 
 async def GetSkillStoreHelper(user_id:str):
     try:
-        skillStore,skillTag,skillFunction,skillSubFunction,chatbotBaseConfig,dynamicParam = await exec_stored_procedure_multiple_sets(sp_name="GetSkillStores",
+        skillStore,skillTag,skillFunction,skillSubFunction,chatbotBaseConfig,dynamicParam,skillResources,owner,contact = await exec_stored_procedure_multiple_sets(sp_name="GetSkillStores",
                                             param_names=["UserId"], 
                                             param_values=[user_id],
                                             conStr=SkillStoreDBCon, 
@@ -179,12 +179,18 @@ async def GetSkillStoreHelper(user_id:str):
             skillTag_dict = [x for x in skillTag if x[0] == ssl[0]]
             skillfunction_dict = [x for x in skillFunction if x[0] == ssl[0]]
             skillsubfunction_dict = [x for x in skillSubFunction if x[0] == ssl[0]]
+            skillResources_dict = [x for x in skillResources if x[1] == ssl[0]]
+            owner_dict = [x for x in owner if x[1] == ssl[0]]
+            contact_dict = [x for x in contact if x[1] == ssl[0]]
             chatbotConfig_dict = [x for x in chatbotConfig_List if x["SkillStoreId"] == ssl[0]]
             if len(chatbotConfig_dict) == 0:
                 chatbotConfig_dict = [x for x in chatbotConfig_List if x["IsDefault"] == True]
             skillTag_List = []
             skillFunction_List = []
             skillSubFunction_List = []
+            skillResources_List = []
+            owner_List = []
+            contact_List = []
             for sa in skillTag_dict:
                 skillTag_List.append(SkillTag(
                     Id=sa[1],
@@ -202,6 +208,19 @@ async def GetSkillStoreHelper(user_id:str):
                     Id=sa[1],
                     Name=sa[2]
                     ).dict())
+            
+            for sa in skillResources_dict:
+                skillResources_List.append(SkillResource(
+                    Id=sa[0],
+                    ResourceId=sa[2],
+                    ResourceName=sa[3]
+                    ).dict())
+                
+            for sa in owner_dict:
+                owner_List.append(sa[0])
+            
+            for sa in contact_dict:
+                contact_List.append(sa[0])
             
             skillstore = SkillStore(
                 Id=ssl[0],
@@ -227,7 +246,10 @@ async def GetSkillStoreHelper(user_id:str):
                 ChatbotConfiguration=chatbotConfig_dict[0] if ssl[14] == False else None,
                 skillTags=skillTag_List,
                 functions=skillFunction_List,
-                subFunctions=skillSubFunction_List
+                subFunctions=skillSubFunction_List,
+                SkillResources=skillResources_List,
+                Owner=owner_List,
+                Contact=contact_List
                 ).dict()
             skillStore_List.append(skillstore)
             
@@ -237,7 +259,7 @@ async def GetSkillStoreHelper(user_id:str):
 
 async def GetSkillStoreByIdHelper(SkillStoreId:int,user_id:str):
     try:
-        skillStore,skillTag,skillFunction,skillSubFunction,skillLikes,skillUsed,SkillVersions,VersionDetails,skillTagVersions,SkillFunctionVersions,SkillSubFunctionsVersions,chatbotBaseConfig,dynamicParam = await exec_stored_procedure_multiple_sets(sp_name="GetSkillStoreById",
+        skillStore,skillTag,skillFunction,skillSubFunction,skillLikes,skillUsed,SkillVersions,VersionDetails,skillTagVersions,SkillFunctionVersions,SkillSubFunctionsVersions,chatbotBaseConfig,dynamicParam,skillResources = await exec_stored_procedure_multiple_sets(sp_name="GetSkillStoreById",
                                             param_names=["UserId","SkillStoreId"], 
                                             param_values=[user_id,SkillStoreId],
                                             conStr=SkillStoreDBCon, 
@@ -277,6 +299,7 @@ async def GetSkillStoreByIdHelper(SkillStoreId:int,user_id:str):
         skillTag_List = []
         skillFunction_List = []
         skillSubFunction_List = []
+        skillResources_List = []
         skillLike_List = []
         skillUsed_List = []
         version_List = []
@@ -296,6 +319,13 @@ async def GetSkillStoreByIdHelper(SkillStoreId:int,user_id:str):
             skillSubFunction_List.append(SkillSubFunction(
                 Id=sa[1],
                 Name=sa[2]
+                ).dict())
+        
+        for sa in skillResources:
+            skillResources_List.append(SkillResource(
+                Id=sa[0],
+                ResourceId=sa[1],
+                ResourceName=sa[2]
                 ).dict())
         
         for sa in skillLikes:
@@ -417,6 +447,7 @@ async def GetSkillStoreByIdHelper(SkillStoreId:int,user_id:str):
             skillTags=skillTag_List,
             functions=skillFunction_List,
             subFunctions=skillSubFunction_List,
+            SkillResources=skillResources_List,
             likes=skillLike_List,
             used=skillUsed_List,
             versions=version_List
@@ -519,6 +550,7 @@ async def CreateSkillHelper(data:CreateUpdateSkillStore,user_id:str):
         owners = []
         contacts = []
         dynamicProperties = []
+        skillResources = []
         
         for id in data.functions:
             functions.append((id,))
@@ -537,13 +569,17 @@ async def CreateSkillHelper(data:CreateUpdateSkillStore,user_id:str):
         
         for text in data.DynamicProperties:
             dynamicProperties.append((text.key,text.Value))
+        
+        # conveting list of SkillResources into list of Tuple
+        for text in data.SkillResources:
+            skillResources.append((text.Id,text.ResourceId,text.ResourceName))    
             
         await exec_store_proc(sp_name="InsertSkillStore",
                                 param_names=["UserId","Name","ShortDescription",
                                              "Description","LookupDepartmentId","LookupSkillScopeId",
                                              "PublishOn","Acurracy","AvgExecutionTime",
                                              "IsThirdPartyAITool","LookupFunction","LookupSubFunction","Tags",
-                                             "Owner","Contact","DynamicProperties","InputType","OutputType","LastMessagesCount",
+                                             "Owner","Contact","DynamicProperties","SkillResources","InputType","OutputType","LastMessagesCount",
                                              "ChatGPTVersion","IsChatbotTestable","ShowCitation",
                                              "ShowFollowUpQuestions","CurlRequestString","UserAssistantMessageFormat",
                                              "ChatbotUIView","ChatBotURL","FileType","SecurityGroupId",
@@ -552,7 +588,7 @@ async def CreateSkillHelper(data:CreateUpdateSkillStore,user_id:str):
                                 param_values=[user_id,data.Name,data.ShortDescription,data.Description,
                                               data.DepartmentNameId,data.LookupSkillScopeId,data.PublishOn,data.Acurracy,
                                               data.AvgExecutionTime,data.IsThirdPartyAITool,functions,
-                                              subFunctions,tags,owners,contacts,dynamicProperties,data.InputType,data.OutputType,
+                                              subFunctions,tags,owners,contacts,dynamicProperties,skillResources,data.InputType,data.OutputType,
                                               data.LastMessagesCount,data.ChatGPTVersion,data.IsChatbotTestable,data.ShowCitation,
                                               data.ShowFollowUpQuestions,data.CurlRequestString,data.UserAssistantMessageFormat,
                                               data.ChatbotUIView,data.ChatBotURL,data.FileType,data.SecurityGroupId,
@@ -571,6 +607,7 @@ async def UpdateSkillHelper(data:CreateUpdateSkillStore,SkillStoreId:int,user_id
         owners = []
         contacts = []
         dynamicProperties = []
+        skillResources = []
         for id in data.functions:
             functions.append((id,))
         
@@ -589,12 +626,16 @@ async def UpdateSkillHelper(data:CreateUpdateSkillStore,SkillStoreId:int,user_id
         for text in data.DynamicProperties:
             dynamicProperties.append((text.key,text.Value))
             
+        # conveting list of SkillResources into list of Tuple
+        for text in data.SkillResources:
+            skillResources.append((text.Id,text.ResourceId,text.ResourceName))
+            
         await exec_store_proc(sp_name="UpdateSkillStore",
                                 param_names=["SkillStoreId","UserId","Name","ShortDescription",
                                              "Description","LookupDepartmentId","LookupSkillScopeId",
                                              "PublishOn","Acurracy","AvgExecutionTime",
                                              "IsThirdPartyAITool","LookupFunction","LookupSubFunction","Tags",
-                                             "Owner","Contact","DynamicProperties","InputType","OutputType","LastMessagesCount",
+                                             "Owner","Contact","DynamicProperties","SkillResources","InputType","OutputType","LastMessagesCount",
                                              "ChatGPTVersion","IsChatbotTestable","ShowCitation",
                                              "ShowFollowUpQuestions","CurlRequestString","UserAssistantMessageFormat",
                                              "ChatbotUIView","ChatBotURL","FileType","SecurityGroupId",
@@ -603,7 +644,7 @@ async def UpdateSkillHelper(data:CreateUpdateSkillStore,SkillStoreId:int,user_id
                                 param_values=[SkillStoreId,user_id,data.Name,data.ShortDescription,data.Description,
                                               data.DepartmentNameId,data.LookupSkillScopeId,data.PublishOn,data.Acurracy,
                                               data.AvgExecutionTime,data.IsThirdPartyAITool,functions,
-                                              subFunctions,tags,owners,contacts,dynamicProperties,data.InputType,data.OutputType,
+                                              subFunctions,tags,owners,contacts,dynamicProperties,skillResources,data.InputType,data.OutputType,
                                               data.LastMessagesCount,data.ChatGPTVersion,data.IsChatbotTestable,data.ShowCitation,
                                               data.ShowFollowUpQuestions,data.CurlRequestString,data.UserAssistantMessageFormat,
                                               data.ChatbotUIView,data.ChatBotURL,data.FileType,data.SecurityGroupId,
@@ -626,7 +667,7 @@ async def DeleteSkillHelper(SkillStoreId:int,user_id:str):
 
 async def GetSkillDetailsHelper(SkillStoreId:int):
     try:
-        skills,LookupFunction,LookupSubFunction,LookupSkillTag,Contact,Owner,DynamicProperties = await exec_stored_procedure_multiple_sets(sp_name="GetSkillDetails",
+        skills,LookupFunction,LookupSubFunction,LookupSkillTag,Contact,Owner,DynamicProperties,skillResources = await exec_stored_procedure_multiple_sets(sp_name="GetSkillDetails",
                                             param_names=["SkillStoreId"], 
                                             param_values=[SkillStoreId],
                                             conStr=SkillStoreDBCon, 
@@ -638,6 +679,7 @@ async def GetSkillDetailsHelper(SkillStoreId:int):
         c_List = []
         o_List = []
         dp_List = []
+        skillResources_list = []
         logger.debug(f'{skills}')  
         
         for lf in LookupFunction:
@@ -658,6 +700,13 @@ async def GetSkillDetailsHelper(SkillStoreId:int):
         for dp in DynamicProperties:
             dp_List.append(KeyValuePair(key=dp[0],
                                         Value=dp[1]).dict())
+        
+        for sr in skillResources:
+            skillResources_list.append(SkillResource(
+                Id=sr[0],
+                ResourceId=sr[1],
+                ResourceName=sr[2]
+                ).dict())
             
         Skill = CreateUpdateSkillStore(Name=skills[0][0],
                                             Description=skills[0][1],
@@ -692,8 +741,26 @@ async def GetSkillDetailsHelper(SkillStoreId:int):
                                             tags=lst_List,
                                             Owner=o_List,
                                             Contact=c_List,
-                                            DynamicProperties=dp_List 
+                                            DynamicProperties=dp_List,
+                                            SkillResources=skillResources_list 
                                             ).dict()
         return Skill
+    except Exception as ex:
+        raise
+    
+async def GetSkillResourceCostByDaysHelper(data:SkillResourceCost):
+    try:            
+        responseData = await exec_store_proc(sp_name="GetSkillResourceCostByDays",
+                                param_names=["SkillId","DaysBack"], 
+                                param_values=[data.SkillId,data.DaysBack],
+                                conStr=SkillStoreDBCon, 
+                                fetch_data=True)
+        
+        skillResourceCost = []
+        for skc in responseData:
+            skillResourceCost.append({"ResourceName":skc[0],"SkillId":skc[1],"TotalCost":skc[2],"TimeStamp":skc[3]})
+
+        return skillResourceCost
+        
     except Exception as ex:
         raise

@@ -26,6 +26,11 @@ class SkillSubFunction(BaseModel):
 class KeyValuePair(BaseModel):
     key: str
     Value: str
+    
+class SkillResource(BaseModel):
+    Id: int
+    ResourceId:str
+    ResourceName:str
 
 class ChatbotConfiguration(BaseModel):
     SkillStoreId:Optional[int]
@@ -104,6 +109,9 @@ class SkillStore(BaseModel):
     skillTags:List[SkillTag]
     functions:List[SkillFunction]
     subFunctions:List[SkillSubFunction]
+    SkillResources:Optional[List[SkillResource]]
+    Owner:Optional[List[str]]
+    Contact:Optional[List[str]]
 
 class UpdateStatus(BaseModel):
     SkillStoreId:int
@@ -199,6 +207,7 @@ class SkillStoreDetail(BaseModel):
     skillTags:List[SkillTag]
     functions:List[SkillFunction]
     subFunctions:List[SkillSubFunction]
+    SkillResources:Optional[List[SkillResource]]
     likes:Optional[List[SkillStoreLikes]]
     used:Optional[List[SkillStoreUsed]]
     versions:Optional[List[SkillStoreVersion]]
@@ -219,6 +228,7 @@ class CreateUpdateSkillStore(BaseModel):
     Owner:Optional[List[str]]
     Contact:Optional[List[str]]
     DynamicProperties:Optional[List[KeyValuePair]]
+    SkillResources:Optional[List[SkillResource]]
     InputType:Optional[str]
     OutputType:Optional[str]
     LastMessagesCount:Optional[int]
@@ -238,3 +248,7 @@ class CreateUpdateSkillStore(BaseModel):
     CitationParams:Optional[str]
     ImageURL:Optional[str]
     ImageParams:Optional[str]
+    
+class SkillResourceCost(BaseModel):
+    SkillId:int
+    DaysBack:int 
