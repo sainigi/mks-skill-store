@@ -4,11 +4,11 @@ from typing import Dict, List
 from fastapi import  status,  Depends,APIRouter
 from fastapi.responses import JSONResponse
 from app.models.common import Status
-from app.models.skillStore import DisableFollowupQuestions,CreateUpdateSkillStore,SkillResourceCost
+from app.models.skillStore import DisableFollowupQuestions,CreateUpdateSkillStore,SkillResourceCost,DailySkillResourceCost
 from app.services.skillStoreService import InsertUpdateLikeStatusHelper,\
         InsertUpdateUsedStatusHelper,GetSkillStoreHelper,GetSkillStoreByIdHelper,\
             CheckSkillsAvailabilityHelper,AddUpdateUsersSkillShowFollowupQuestionStateHelper,\
-                CreateSkillHelper,UpdateSkillHelper,DeleteSkillHelper,GetSkillDetailsHelper,GetSkillResourceCostByDaysHelper
+                CreateSkillHelper,UpdateSkillHelper,DeleteSkillHelper,GetSkillDetailsHelper,GetSkillResourceCostByDaysHelper,GetSkillResourceDetailHelper,AddDailySkillResourceCostBulkHelper
 from app.models.skillStore import UpdateStatus
 from app.commons.error_helper import responses, GetJSONResponse, db_unauthorized
 from app.commons.jwt_auth import validate_token
@@ -194,7 +194,7 @@ async def GetSkillResourceCostByDays(body:SkillResourceCost,token: Dict = Depend
         skillResourceCost = await GetSkillResourceCostByDaysHelper(data=body)
         return JSONResponse(status_code=status.HTTP_200_OK, content=skillResourceCost)
     except pyodbc.Error as ex:
-        logging.exception(f'DB Exception while CreateSkillStore: {ex!r}')
+        logging.exception(f'Exception while getting Skill Resource Cost by days: {ex!r}')
         err_msg = str(ex)
         if 'SkillId' in err_msg and 'does not exist in SkillStore' in err_msg:
             return GetJSONResponse(404, f"SkillId not found: {body.SkillID}")
@@ -204,5 +204,38 @@ async def GetSkillResourceCostByDays(body:SkillResourceCost,token: Dict = Depend
             return GetJSONResponse(401, db_unauthorized)
         return GetJSONResponse(500, ex)    
     except Exception as ex:
-        logging.exception(f'Exception while CreateSkillStore : {ex!r}')
+        logging.exception(f'Exception while getting Skill Resource Cost by days : {ex!r}')
         return GetJSONResponse(500, ex)
+    
+@router.get('/GetSkillResourceDetail', responses=responses("422","500"))
+async def GetSkillResourceDetail( token:Dict = Depends(validate_token)):
+    try:
+        logger.debug(f"CreateSkillResourceDetail: token {token}")
+        skillResourceDetail = await GetSkillResourceDetailHelper()
+        return JSONResponse(status_code=status.HTTP_200_OK, content=skillResourceDetail)
+    except pyodbc.Error as ex:
+        logging.exception(f'Db Exception while getting skill resource detail: {ex!r} ')
+        err_msg = str(ex)
+        if db_unauthorized in ex.args[1]:
+            return GetJSONResponse(401, db_unauthorized)
+        return GetJSONResponse(500, ex) 
+    except Exception as ex:
+        logging.exception(f'Exceptiopn While Getting Skill Resource Detail: {ex!r}')
+        return GetJSONResponse(500,ex)
+    
+@router.post('/AddDailySkillResourceCostBulk', responses=responses("422","500"))
+async def AddDailySkillResourceCostBulk(body:List[DailySkillResourceCost], token:Dict = Depends(validate_token)):
+    try:
+        logger.debug(f"AddDailySkillResourceCostBulk: token {token}")
+        logger.debug(f"AddDailySkillResourceCostBulk: body {body}")
+        bulkResult = await AddDailySkillResourceCostBulkHelper(body)
+        return JSONResponse(status_code=status.HTTP_200_OK, content=bulkResult) 
+    except pyodbc.Error as ex:
+        logging.exception(f"Db Exception while creating SkillResourceDetail: {ex!r}")
+        err_msg = str(ex)
+        if db_unauthorized in ex.args[1]:
+            return GetJSONResponse(401, db_unauthorized)
+        return GetJSONResponse(500,ex)
+    except Exception as ex:
+        logging.exception(f'line2 ---> Exceptiopn While Getting Skill Resource Detail: {ex!r}')
+        return GetJSONResponse(500,ex)

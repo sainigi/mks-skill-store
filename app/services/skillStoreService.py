@@ -3,11 +3,12 @@ from app.models.skillStore import Filter,SkillStore,UpdateStatus,SkillTag,\
     SkillStoreDetail,SkillStoreLikes,SkillStoreUsed,SkillStoreVersion,\
         SkillStoreDetailVersion,SkillFunction,SkillSubFunction,DefaultChatbotConfiguration,\
             ChatbotConfiguration,Additive,SkillStoreStatus,DisableFollowupQuestions,\
-                CreateUpdateSkillStore,KeyValuePair,SkillResourceCost,SkillResource
+                CreateUpdateSkillStore,KeyValuePair,SkillResourceCost,SkillResource,DailySkillResourceCost
 from app.commons.sp_helper import exec_store_proc,exec_stored_procedure_multiple_sets
 import logging
 import os
 from app.commons.utils import stringify_dt
+import json
 
 logger = logging.getLogger()
 
@@ -761,6 +762,41 @@ async def GetSkillResourceCostByDaysHelper(data:SkillResourceCost):
             skillResourceCost.append({"ResourceName":skc[0],"SkillId":skc[1],"TotalCost":skc[2],"TimeStamp":skc[3]})
 
         return skillResourceCost
+        
+    except Exception as ex:
+        raise
+    
+async def GetSkillResourceDetailHelper():
+    try:            
+        responseData = await exec_store_proc(sp_name="GetSkillResourceDetail",
+                                param_names=[], 
+                                param_values=[],
+                                conStr=SkillStoreDBCon, 
+                                fetch_data=True)
+        
+        skillResourceDetail = []
+        for srd in responseData:
+            skillResourceDetail.append({"Id":srd[0],"SkillId":srd[1],"ResourceId":srd[2]})
+
+        return skillResourceDetail
+        
+    except Exception as ex:
+        raise
+    
+async def AddDailySkillResourceCostBulkHelper(data:List[DailySkillResourceCost]):
+    try:
+        json_data = json.dumps([item.dict() for item in data])         
+        result = await exec_store_proc(sp_name="AddDailySkillResourceCostBulk",
+            param_names=["JsonData"], 
+            param_values=[json_data],
+            conStr=SkillStoreDBCon, 
+            fetch_data=True)
+        
+        if result and len(result) > 0:
+            json_response = result[0][0]
+            return json.loads(json_response) if json_response else []
+        
+        return []
         
     except Exception as ex:
         raise

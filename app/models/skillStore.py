@@ -252,3 +252,8 @@ class CreateUpdateSkillStore(BaseModel):
 class SkillResourceCost(BaseModel):
     SkillId:int
     DaysBack:int 
+    
+class DailySkillResourceCost(BaseModel):
+    SkillResourceDetailId: int
+    TimeStamp: str
+    Cost: float
