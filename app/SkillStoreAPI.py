@@ -12,6 +12,8 @@ from app.services.skillStoreService import InsertUpdateLikeStatusHelper,\
 from app.models.skillStore import UpdateStatus
 from app.commons.error_helper import responses, GetJSONResponse, db_unauthorized
 from app.commons.jwt_auth import validate_token
+from app.commons import auth
+from fastapi.security.api_key import APIKey
 
 logger = logging.getLogger()
 
@@ -208,9 +210,9 @@ async def GetSkillResourceCostByDays(body:SkillResourceCost,token: Dict = Depend
         return GetJSONResponse(500, ex)
     
 @router.get('/GetSkillResourceDetail', responses=responses("422","500"))
-async def GetSkillResourceDetail( token:Dict = Depends(validate_token)):
+async def GetSkillResourceDetail( Authorization:APIKey = Depends(auth.get_api_key)):
     try:
-        logger.debug(f"CreateSkillResourceDetail: token {token}")
+        logger.debug(f"CreateSkillResourceDetail: token {Authorization}")
         skillResourceDetail = await GetSkillResourceDetailHelper()
         return JSONResponse(status_code=status.HTTP_200_OK, content=skillResourceDetail)
     except pyodbc.Error as ex:
@@ -224,9 +226,9 @@ async def GetSkillResourceDetail( token:Dict = Depends(validate_token)):
         return GetJSONResponse(500,ex)
     
 @router.post('/AddDailySkillResourceCostBulk', responses=responses("422","500"))
-async def AddDailySkillResourceCostBulk(body:List[DailySkillResourceCost], token:Dict = Depends(validate_token)):
+async def AddDailySkillResourceCostBulk(body:List[DailySkillResourceCost], Authorization:APIKey = Depends(auth.get_api_key)):
     try:
-        logger.debug(f"AddDailySkillResourceCostBulk: token {token}")
+        logger.debug(f"AddDailySkillResourceCostBulk: token {Authorization}")
         logger.debug(f"AddDailySkillResourceCostBulk: body {body}")
         bulkResult = await AddDailySkillResourceCostBulkHelper(body)
         return JSONResponse(status_code=status.HTTP_200_OK, content=bulkResult) 
